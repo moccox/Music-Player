@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--带列表的首页，有列表、播放按钮、当前音乐信息、播放模式（未完善）-->
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context="com.example.administrator.music_player.myApplication.MainActivity">
+
+    <RelativeLayout
+        android:id="@+id/settingBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/black"
+        android:layout_alignParentTop="true">
+        <ImageButton
+            android:id="@+id/setting"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/button_setting"
+            android:layout_alignParentRight="true"/>
+
+
+    </RelativeLayout>
+    <ListView
+        android:id="@+id/index_listView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/settingBar">
+
+    </ListView>
+    <ListView
+        android:id="@+id/setting_listView"
+        android:layout_width="120sp"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/settingBar"
+        android:layout_alignParentRight="true"
+        android:visibility="gone">
+
+
+    </ListView>
+
+    <LinearLayout
+        android:id="@+id/playingBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:orientation="horizontal"
+        android:background ="@color/black"
+        android:onClick="goToMain">
+        <Space
+            android:layout_width="100sp"
+            android:layout_height="wrap_content" /> <!--暂时用来占用播放模式的空间-->
+
+        <ImageButton
+            android:id="@+id/index_playOrPause"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/index_button_play"/>
+        <android.support.v4.widget.Space
+            android:layout_width="50sp"
+            android:layout_height="wrap_content" />
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+            <TextView
+                android:id="@+id/index_title"
+                android:layout_width="180sp"
+                android:layout_height="wrap_content"
+                android:textSize="18sp"
+                android:textColor="#FFFFFF"
+                android:ellipsize="marquee"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:marqueeRepeatLimit="marquee_forever"
+                android:scrollHorizontally="true"
+                android:singleLine="true" />
+            <TextView
+                android:id="@+id/index_artist"
+                android:layout_width="180sp"
+                android:layout_height="wrap_content"
+                android:textSize="16sp"
+                android:textColor="#FFFFFF"
+                android:ellipsize="marquee"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:marqueeRepeatLimit="marquee_forever"
+                android:scrollHorizontally="true"
+                android:singleLine="true" />
+        </LinearLayout>
+
+
+
+    </LinearLayout>
+</RelativeLayout>

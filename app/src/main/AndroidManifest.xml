@@ -10,11 +10,30 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
-        <activity android:name=".myApplication.MainActivity">
+
+        <activity android:name=".myApplication.IndexActivity"
+            android:configChanges="keyboardHidden|orientation|screenSize"> <!--避免屏幕旋转之后重启Activity-->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".myApplication.MainActivity"
+            android:configChanges="keyboardHidden|orientation|screenSize">
+            <intent-filter>
+                <action android:name="com.example.administrator.music_player.action.Main"/>
+
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".myApplication.ChooseColor">
+            <intent-filter>
+                <action android:name="com.example.administrator.music_player.action.Color"/>
+
+                <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
         </activity>
     </application>

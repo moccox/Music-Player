@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical" android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <TableLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:stretchColumns="*">
+        <TableRow
+            android:layout_weight="1"
+            android:stretchColumns="0,1,2"
+            android:gravity="center"
+            android:layout_marginTop="10sp">
+            <TabWidget
+                android:gravity="center">
+                <View
+                    android:id="@+id/v1"
+                    android:layout_width="80sp"
+                    android:layout_height="80sp"
+                    android:background="@color/black" />
+            </TabWidget>
+            <TabWidget
+                android:gravity="center">
+                <View
+                    android:id="@+id/v2"
+                    android:layout_width="80sp"
+                    android:layout_height="80sp"
+                    android:background="@color/gray"/>
+            </TabWidget>
+            <TabWidget
+                android:gravity="center">
+                <View
+                    android:id="@+id/v3"
+                    android:layout_width="80sp"
+                    android:layout_height="80sp"
+                    android:background="@color/red" />
+            </TabWidget>
+        </TableRow>
+
+        <TableRow
+            android:layout_weight="1"
+            android:stretchColumns="0,1,2"
+            android:gravity="center"
+            android:layout_marginTop="20sp">
+            <TabWidget
+                android:gravity="center">
+                <View
+                    android:id="@+id/v4"
+                    android:layout_width="80sp"
+                    android:layout_height="80sp"
+                    android:background="@color/green" />
+            </TabWidget>
+            <TabWidget
+                android:gravity="center">
+                <View
+                    android:id="@+id/v5"
+                    android:layout_width="80sp"
+                    android:layout_height="80sp"
+                    android:background="@color/deepBlue" />
+            </TabWidget>
+            <TabWidget
+                android:gravity="center">
+                <View
+                    android:id="@+id/v6"
+                    android:layout_width="80sp"
+                    android:layout_height="80sp"
+                    android:background="@color/lightBlue" />
+            </TabWidget>
+        </TableRow>
+
+        <TableRow
+            android:layout_weight="1"
+            android:stretchColumns="0,1,2"
+            android:gravity="center"
+            android:layout_marginTop="20sp">
+            <TabWidget
+                android:gravity="center">
+                <View
+                    android:id="@+id/v7"
+                    android:layout_width="80sp"
+                    android:layout_height="80sp"
+                    android:background="@color/orange" />
+            </TabWidget>
+            <TabWidget
+                android:gravity="center">
+                <View
+                    android:id="@+id/v8"
+                    android:layout_width="80sp"
+                    android:layout_height="80sp"
+                    android:background="@color/pink" />
+            </TabWidget>
+            <TabWidget
+                android:gravity="center">
+                <View
+                    android:id="@+id/v9"
+                    android:layout_width="80sp"
+                    android:layout_height="80sp"
+                    android:background="@color/purple" />
+            </TabWidget>
+        </TableRow>
+    </TableLayout>
+
+    <Button
+        android:id="@+id/sure"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_marginBottom="50sp"
+        android:layout_marginLeft="60sp"
+        android:text="确定"/>
+    <Button
+        android:id="@+id/unsure"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentRight="true"
+        android:layout_marginBottom="50sp"
+        android:layout_marginRight="60sp"
+        android:text="取消"/>
+
+</RelativeLayout>

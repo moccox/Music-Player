@@ -3,4 +3,16 @@
     <color name="colorPrimary">#3F51B5</color>
     <color name="colorPrimaryDark">#303F9F</color>
     <color name="colorAccent">#FF4081</color>
+
+    <!--主题颜色-->
+    <color name="black">#DD000000</color>
+    <color name="gray">#DD7F7F7F</color>
+    <color name="red">#DDFF0000</color>
+    <color name="orange">#DDFFAF2C</color>
+    <color name="pink">#DDFFAEC9</color>
+    <color name="green">#DD22B14C</color>
+    <color name="deepBlue">#DD3F48CC</color>
+    <color name="lightBlue">#DD7092BF</color>
+    <color name="purple">#DDA349A4</color>
+
 </resources>
