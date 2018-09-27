@@ -4,17 +4,68 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context="com.example.administrator.music_player.myApplication.MainActivity">
+    tools:context="com.example.administrator.music_player.Activity.MainActivity">
 
+    <!--音量控制-->
+    <SeekBar
+        android:id="@+id/voiceSeekBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:paddingLeft="10dip"
+        android:paddingRight="10dip"
+        android:background="#00000000"
+        android:thumb="@drawable/voice"/>
+
+    <!--音乐列表 以后改成歌词显示-->
    <ListView
        android:id="@+id/myListView"
        android:layout_width="match_parent"
        android:layout_height="wrap_content"
-       android:layout_alignParentTop="true">
+       android:layout_below="@+id/voiceSeekBar"
+       android:layout_above="@+id/playingSeek">
 
    </ListView>
 
+    <!--播放进度条和时间-->
     <LinearLayout
+        android:id="@+id/playingSeek"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_above="@+id/controlBar">
+        <SeekBar
+            android:id="@+id/playingSeekBar"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:paddingLeft="10dip"
+            android:paddingRight="10dip"
+            android:background="#00000000"/>
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="18sp"
+                android:text="00:00"
+                android:layout_alignParentLeft="true"/>
+
+            <TextView
+                android:id="@+id/endPosition"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="18sp"
+                android:layout_alignParentRight="true"
+                android:text="00:00"/>
+        </RelativeLayout>
+
+    </LinearLayout>
+
+    <!--播放控制栏-->
+    <LinearLayout
+        android:id="@+id/controlBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"

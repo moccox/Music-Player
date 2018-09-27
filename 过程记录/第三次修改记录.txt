@@ -1,0 +1,21 @@
+第三次修改：
+本次修改将各个Activity中对媒体操作的方法放入Service中。
+
+出现的问题如下：
+1.跳转界面（Activity1跳转至Activity2）时单击后期望过程为：
+
+A.  Activity1先发送【获取当前歌曲id和播放进度】的命令广播给Service；
+
+B.  Service获取当前的歌曲id和播放进度，并将id和播放进度广播回Activity；
+
+C.  Activity1获得歌曲id和播放进度，将其打包发送给Activity2；
+
+D.  Activity2获得歌曲id和播放进度，发送命令广播让Service从此进度播放；
+
+然而，Receiver总是在完成C、D后才接收B的广播，导致歌曲进度总是为0
+
+解决办法：
+
+将Service中的歌曲id和播放进度设置为public类型，A【获取当前歌曲进度命令】修改为 【让Service自己获取当前歌曲id和进度并记录下来】；并且不用id和播放进度广播回Activity；
+
+当界面跳转完成时，再让Service从保存下来的歌曲id和播放进度开始播放歌曲。

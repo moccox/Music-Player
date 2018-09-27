@@ -11,7 +11,7 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
-        <activity android:name=".myApplication.IndexActivity"
+        <activity android:name=".Activity.IndexActivity"
             android:configChanges="keyboardHidden|orientation|screenSize"> <!--避免屏幕旋转之后重启Activity-->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -20,7 +20,7 @@
             </intent-filter>
         </activity>
 
-        <activity android:name=".myApplication.MainActivity"
+        <activity android:name=".Activity.MainActivity"
             android:configChanges="keyboardHidden|orientation|screenSize">
             <intent-filter>
                 <action android:name="com.example.administrator.music_player.action.Main"/>
@@ -29,13 +29,18 @@
             </intent-filter>
         </activity>
 
-        <activity android:name=".myApplication.ChooseColor">
+        <activity android:name=".Activity.ChooseColor">
             <intent-filter>
                 <action android:name="com.example.administrator.music_player.action.Color"/>
 
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
         </activity>
+
+        <service android:name=".Service.MusicService"
+            android:exported="true">
+
+        </service>
     </application>
 
 </manifest>

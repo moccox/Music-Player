@@ -1,9 +1,11 @@
-package com.example.administrator.music_player.myApplication;
+package com.example.administrator.music_player.Activity;
 
 import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.database.Cursor;
-import android.media.MediaPlayer;
 import android.os.Bundle;
 
 import android.provider.MediaStore;
@@ -16,10 +18,10 @@ import android.widget.SimpleAdapter;
 import android.widget.Toast;
 
 import com.example.administrator.music_player.R;
-import com.example.administrator.music_player.data.Music;
-import com.example.administrator.music_player.data.MusicList;
+import com.example.administrator.music_player.Data.Music;
+import com.example.administrator.music_player.Data.MusicList;
+import com.example.administrator.music_player.Service.MusicService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -34,20 +36,81 @@ public class MainActivity extends Activity {
     private ListView mlist;
 
     private ArrayList<Music> mmusicArrayList;           //装Music类的数组列表
-    private MediaPlayer mplayer = new MediaPlayer();    // 媒体播放类
-    private int mmusicId = 0;   //记录播放歌曲的序号，初始化为0
-    private int mmusicPosition; //音乐播放点，记录歌曲播放进度
+    private int mmusicId;   //记录播放歌曲的序号，初始化为0
+    private int status; //播放状态
+
+    private StatusChangeReceiver statusChangeReceiver; //状态改变广播接收器
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        status = MusicService.statusStoped;
         findViews();
         initListener();
         initMusicList();
         initListView();
         checkMusicfile();
+        bindStatusChangeReceiver();
         initPosition();
+        //startService(new Intent(this,MusicService.class));
+    }
+
+    //——类、方法定义——//
+
+    /**状态改变广播接收器定义**/
+    class StatusChangeReceiver extends BroadcastReceiver{
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            status = intent.getIntExtra("status",-1);
+            switch(status){
+                case MusicService.statusPlaying:    //播放中，将播放按钮改成暂停按钮
+                    mplayOrPauseBt.setBackgroundResource(R.drawable.button_pause);  //按钮外观改成暂停
+                    break;
+                case MusicService.statusPaused:     //暂停、停止，将播放按钮改回播放按钮
+                case MusicService.statusStoped:
+                    mplayOrPauseBt.setBackgroundResource(R.drawable.button_play);   //按钮外观改回播放
+                    break;
+                case MusicService.statusCompleted:  //当前音乐播放结束
+                    sendBroadcastOnCommand(MusicService.commandNext);   //顺序模式，播放下一首
+                    break;
+                default:    //其他情况
+                    break;
+            }
+        }
+    }
+
+
+    /**绑定广播接收器**/
+    private void bindStatusChangeReceiver(){
+        statusChangeReceiver = new StatusChangeReceiver();
+        IntentFilter filter = new IntentFilter(MusicService.broadcastMusicServiceUpdateStatus); //消息过滤
+        registerReceiver(statusChangeReceiver,filter);
+    }
+
+    /**发送命令广播**/
+    private void sendBroadcastOnCommand(int command){
+        Intent intent = new Intent(MusicService.broadcastMusicServiceControl);
+        intent.putExtra("command",command);
+        switch(command){
+            case MusicService.commandPlay:  //播放功能需加装音乐ID
+                intent.putExtra("id",mmusicId);
+                break;
+            case MusicService.commandSeekTo:    //从某进度开始播放，加装音乐ID和进度position
+                intent.putExtra("id",mmusicId);
+                //intent.putExtra("position",mmusicPosition);
+                break;
+            case MusicService.commandPrevious: //其他功能皆不需要加装内容
+            case MusicService.commandNext:
+            case MusicService.commandPause:
+            case MusicService.commandStop:
+            case MusicService.commandResume:
+            case MusicService.commandCheckedIsPlaying:
+            default:
+                break;
+        }
+        sendBroadcast(intent);
     }
 
     /**组件关联**/
@@ -65,12 +128,9 @@ public class MainActivity extends Activity {
             @Override
             public void onClick(View v) {
                 /**播放上一首歌曲**/
-                if(mmusicId == 0){
-                    Toast.makeText(MainActivity.this, "已是第一首歌曲", Toast.LENGTH_LONG).show();
-                }else {
-                    --mmusicId;
-                    play(mmusicId);
-                }
+                if(mmusicId == 0);
+                else --mmusicId;
+                sendBroadcastOnCommand(MusicService.commandPrevious);
             }
         });
 
@@ -78,18 +138,18 @@ public class MainActivity extends Activity {
             @Override
             public void onClick(View v) {
                 /**播放或者暂停**/
-                if(mplayer != null && mplayer.isPlaying()){ //播放改暂停
-                    pause();
-                    mplayOrPauseBt.setBackgroundResource(R.drawable.button_pause);  //按钮外观改成暂停
-                }else{
-                    if(mmusicId == 0){
-                        //一开始的播放
-                        play(mmusicId);
-                    }else{
-                        //暂停改播放
-                        resume();
-                        mplayOrPauseBt.setBackgroundResource(R.drawable.button_play);   //按钮外观改回播放
-                    }
+                switch(status){
+                    case MusicService.statusPaused: //暂停改播放
+                        sendBroadcastOnCommand(MusicService.commandResume);
+                        break;
+                    case MusicService.statusPlaying:    //播放改暂停
+                        sendBroadcastOnCommand(MusicService.commandPause);
+                        break;
+                    case MusicService.statusStoped:     //第一次播放
+                        sendBroadcastOnCommand(MusicService.commandPlay);
+                        break;
+                    default:
+                        break;
                 }
             }
         });
@@ -98,7 +158,7 @@ public class MainActivity extends Activity {
             @Override
             public void onClick(View v) {
                 /**停止播放**/
-                stop();
+                sendBroadcastOnCommand(MusicService.commandStop);
             }
         });
 
@@ -106,12 +166,9 @@ public class MainActivity extends Activity {
             @Override
             public void onClick(View v) {
                 /**播放下一首歌曲**/
-                if(mmusicId == (MusicList.getMusicList().size()-1)){
-                    Toast.makeText(MainActivity.this, "已是最后一首歌曲", Toast.LENGTH_LONG).show();
-                }else{
-                    ++mmusicId;
-                    play(mmusicId);
-                }
+                if(mmusicId == (MusicList.getMusicList().size()-1));
+                else ++mmusicId;
+                sendBroadcastOnCommand(MusicService.commandNext);
             }
         });
 
@@ -120,8 +177,7 @@ public class MainActivity extends Activity {
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 /**单击该项播放该项**/
                 mmusicId = position;
-                play(mmusicId);
-                mplayOrPauseBt.setBackgroundResource(R.drawable.button_play);   //按钮外观改回播放
+               sendBroadcastOnCommand(MusicService.commandPlay);
             }
         });
     }
@@ -220,69 +276,18 @@ public class MainActivity extends Activity {
     private void initPosition(){
         Intent intent = getIntent();
         mmusicId = intent.getIntExtra("id",0);
-        mmusicPosition = intent.getIntExtra("position",0);
-        play(mmusicId);
-        mplayer.seekTo(mmusicPosition);
+        sendBroadcastOnCommand(MusicService.commandSeekTo);
     }
+
 
     /**按下返回键，返回首页**/
     @Override
     public void onBackPressed(){
         Intent intent = new Intent();
+        sendBroadcastOnCommand(MusicService.commandGetPosition);
         intent.putExtra("id",mmusicId);
-        mmusicPosition = mplayer.getCurrentPosition();
-        intent.putExtra("position",mmusicPosition);
         setResult(1,intent);
-        mplayer.stop();
         finish();
     }
 
-    /**读取音乐文件（文件序号：number）**/
-    private void load(int number){
-        String TAG = "load";
-        try{
-            Log.i(TAG, "load: 开始读取音乐文件");
-            mplayer.reset();
-            mplayer.setDataSource(MusicList.getMusicList().get(number).getMmusicPath());
-            mplayer.prepare();
-            Log.i(TAG, "load: 读取音乐文件完毕");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    /**播放音乐文件（文件序号：number）**/
-    private void play(int number){
-        //停止播放当前歌曲
-        String TAG = "play";
-        if(mplayer != null && mplayer.isPlaying()){
-            mplayer.stop();
-            Log.i(TAG, "play: 停止播放当前歌曲");
-        }
-        load(number);   //先读取音乐文件
-        Log.i(TAG, "play: 读取音乐文件成功");
-        mplayer.start();
-        Log.i(TAG, "play: 播放音乐，id："+mmusicId);
-    }
-
-    /**暂停播放**/
-    private void pause(){
-        if(mplayer.isPlaying()) mplayer.pause();
-    }
-
-    /**继续播放**/
-    private void resume(){
-        mplayer.start();
-    }
-
-    /**停止播放**/
-    private void stop(){
-        mplayer.stop();
-        mmusicId = 0;
-    }
-
-    /**重新播放本歌曲（播放完成后）**/
-    private void replay(){
-        mplayer.start();
-    }
 }
