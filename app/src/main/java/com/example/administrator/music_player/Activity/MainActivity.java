@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.database.Cursor;
+import android.media.AudioManager;
 import android.os.Bundle;
 
 import android.os.Handler;
@@ -17,7 +18,6 @@ import android.widget.AdapterView;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.ListView;
-import android.widget.RelativeLayout;
 import android.widget.SeekBar;
 import android.widget.SimpleAdapter;
 import android.widget.TextView;
@@ -49,9 +49,9 @@ public class MainActivity extends Activity {
     private int mtime;   //当前歌曲播放进度
 
     //进度条控制常量
-    private static final int PROGRESS_INCREASE = 0;
-    private static final int PROGRESS_PAUSE = 1;
-    private static final int PROGRESS_RESET = 2;
+    private static final int PROGRESS_INCREASE = 0; //自增
+    private static final int PROGRESS_PAUSE = 1;    //暂停自增
+    private static final int PROGRESS_RESET = 2;    //重新自增
 
     private StatusChangeReceiver statusChangeReceiver; //状态改变广播接收器
     private TextView mtitle;    //当前歌曲
@@ -62,16 +62,19 @@ public class MainActivity extends Activity {
     private LinearLayout mimformationBar; //显示栏（放当前歌曲和演唱者）
     private SeekBar mseekBar;   //进度条
     private Handler mseekBarHandler; //进度条线程
-    private TextView time;
-    private TextView duration;
+    private TextView time;  //显示播放进度
+    private TextView duration;  //显示歌曲时长
 
     private boolean putTime = false;    //第一次初始化进度flag，不需要把mtime放进seekTo的包
+    private AudioManager maudioManager;
+    private VolumeChangeReciver voiceChangeReciver;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         findViews();
+        initVoiceSeekBar(); //初始化音量进度条应放在设置音量进度条监听前，不然设置监听时由于进度条一开始都是从0开始，所以会将音量改成0
         initListener();
         initMusicList();
         initListView();
@@ -81,6 +84,12 @@ public class MainActivity extends Activity {
         initSeekBarHandler();
     }
 
+    @Override
+    protected void onDestroy(){
+        unregisterReceiver(statusChangeReceiver);
+        unregisterReceiver(voiceChangeReciver);
+        super.onDestroy();
+    }
     //——类、方法定义——//
 
     /**状态改变广播接收器定义**/
@@ -125,12 +134,26 @@ public class MainActivity extends Activity {
         }
     }
 
+    /**硬件调节音量接收器定义**/
+    private class VolumeChangeReciver extends BroadcastReceiver{
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            if(intent.getAction().equals("android.media.VOLUME_CHANGED_ACTION")){
+                int currentVolume = maudioManager.getStreamVolume(AudioManager.STREAM_MUSIC);   //获取当前音量
+                mvoiceSeekBar.setProgress(currentVolume);   //将音量设置为当前进度
+            }
+        }
+    }
 
     /**绑定广播接收器**/
     private void bindStatusChangeReceiver(){
         statusChangeReceiver = new StatusChangeReceiver();
-        IntentFilter filter = new IntentFilter(MusicService.broadcastMusicServiceUpdateStatus); //消息过滤
-        registerReceiver(statusChangeReceiver,filter);
+        voiceChangeReciver = new VolumeChangeReciver();
+        IntentFilter filter1 = new IntentFilter(MusicService.broadcastMusicServiceUpdateStatus); //消息过滤
+        IntentFilter filter2 = new IntentFilter("android.media.VOLUME_CHANGED_ACTION"); //消息过滤
+        registerReceiver(statusChangeReceiver,filter1);
+        registerReceiver(voiceChangeReciver,filter2);
     }
 
     /**发送命令广播**/
@@ -159,20 +182,20 @@ public class MainActivity extends Activity {
 
     /**组件关联**/
     private void findViews(){
-        mpreviousBt = (ImageButton) findViewById(R.id.previousButton);
-        mplayOrPauseBt = (ImageButton) findViewById(R.id.playButton);
-        mstopBt = (ImageButton) findViewById(R.id.stopButton);
-        mnextBt = (ImageButton) findViewById(R.id.nextButton);
-        mlist = (ListView) findViewById(R.id.myListView);
-        mtitle = (TextView) findViewById(R.id.main_title);
-        martist = (TextView) findViewById(R.id.main_artist);
-        mvoiceSeekBar = (SeekBar) findViewById(R.id.voiceSeekBar);
-        mplayingBar = (LinearLayout) findViewById(R.id.playingSeek);
-        mcontrolBar = (LinearLayout) findViewById(R.id.controlBar);
-        mimformationBar = (LinearLayout) findViewById(R.id.show);
-        mseekBar = (SeekBar) findViewById(R.id.playingSeekBar);
-        time = (TextView) findViewById(R.id.time);
-        duration = (TextView) findViewById(R.id.duration);
+        mpreviousBt = (ImageButton) findViewById(R.id.previousButton);  //上一首按钮
+        mplayOrPauseBt = (ImageButton) findViewById(R.id.playButton);   //播放/暂停按钮
+        mstopBt = (ImageButton) findViewById(R.id.stopButton);          //停止按钮
+        mnextBt = (ImageButton) findViewById(R.id.nextButton);          //下一首按钮
+        mlist = (ListView) findViewById(R.id.myListView);               //列表
+        mtitle = (TextView) findViewById(R.id.main_title);              //歌曲名字
+        martist = (TextView) findViewById(R.id.main_artist);            //演唱者
+        mvoiceSeekBar = (SeekBar) findViewById(R.id.voiceSeekBar);      //音量条件进度条
+        mplayingBar = (LinearLayout) findViewById(R.id.playingSeek);    //播放栏（包含进度条和时间显示）
+        mcontrolBar = (LinearLayout) findViewById(R.id.controlBar);     //控制栏（包含四个按钮）
+        mimformationBar = (LinearLayout) findViewById(R.id.show);       //信息栏（包含歌曲名字和演唱者）
+        mseekBar = (SeekBar) findViewById(R.id.playingSeekBar);         //进度条
+        time = (TextView) findViewById(R.id.time);                      //显示当前进度时间
+        duration = (TextView) findViewById(R.id.duration);              //显示歌曲时长
     }
 
     /**设置按钮监听**/
@@ -237,6 +260,7 @@ public class MainActivity extends Activity {
             }
         });
 
+        /**列表项目点击事件**/
         mlist.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
@@ -250,6 +274,7 @@ public class MainActivity extends Activity {
             }
         });
 
+        /**进度条状态改变事件**/
         mseekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
 
             @Override
@@ -273,6 +298,25 @@ public class MainActivity extends Activity {
                     //进度条恢复移动
                     mseekBarHandler.sendEmptyMessageDelayed(PROGRESS_INCREASE,1000);
                 }
+            }
+        });
+
+        /**音量调节进度条状态改变事件**/
+        mvoiceSeekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {    //拖动过程改变音量
+                    maudioManager.setStreamVolume(AudioManager.STREAM_MUSIC,progress,0); //将当前进度设置为系统音量
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {  //进度条拖动结束
+                    int currentVolume = maudioManager.getStreamVolume(AudioManager.STREAM_MUSIC);   //获取当前音量
+                    mvoiceSeekBar.setProgress(currentVolume);   //将音量设置为当前进度
             }
         });
     }
@@ -449,5 +493,14 @@ public class MainActivity extends Activity {
                 }
             }
         };
+    }
+
+    /**初始化音量调节进度条**/
+    private void initVoiceSeekBar(){
+        maudioManager = (AudioManager)getSystemService(Context.AUDIO_SERVICE);
+        int maxVolume = maudioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC); //获取系统最大音量
+        mvoiceSeekBar.setMax(maxVolume);    //将音量调节进度条的最大值设置为最大音量
+        int currentVolum = maudioManager.getStreamVolume(AudioManager.STREAM_MUSIC); //获取当前音量
+        mvoiceSeekBar.setProgress(currentVolum);    //将音量进度设置为当前音量
     }
 }
