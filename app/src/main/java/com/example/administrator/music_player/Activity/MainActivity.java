@@ -8,13 +8,19 @@ import android.content.IntentFilter;
 import android.database.Cursor;
 import android.os.Bundle;
 
+import android.os.Handler;
+import android.os.Message;
 import android.provider.MediaStore;
 import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ImageButton;
+import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.RelativeLayout;
+import android.widget.SeekBar;
 import android.widget.SimpleAdapter;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.example.administrator.music_player.R;
@@ -37,23 +43,42 @@ public class MainActivity extends Activity {
 
     private ArrayList<Music> mmusicArrayList;           //装Music类的数组列表
     private int mmusicId;   //记录播放歌曲的序号，初始化为0
-    private int status; //播放状态
+    private int status = MusicService.statusStoped; //播放状态
+    private int mcolor; //主题颜色
+    private int mduration;   //当前歌曲的时长
+    private int mtime;   //当前歌曲播放进度
+
+    //进度条控制常量
+    private static final int PROGRESS_INCREASE = 0;
+    private static final int PROGRESS_PAUSE = 1;
+    private static final int PROGRESS_RESET = 2;
 
     private StatusChangeReceiver statusChangeReceiver; //状态改变广播接收器
+    private TextView mtitle;    //当前歌曲
+    private TextView martist;   //当前演唱者
+    private SeekBar mvoiceSeekBar;  //音量控制条
+    private LinearLayout mplayingBar;    //进度条及时间
+    private LinearLayout mcontrolBar;   //播放栏
+    private LinearLayout mimformationBar; //显示栏（放当前歌曲和演唱者）
+    private SeekBar mseekBar;   //进度条
+    private Handler mseekBarHandler; //进度条线程
+    private TextView time;
+    private TextView duration;
+
+    private boolean putTime = false;    //第一次初始化进度flag，不需要把mtime放进seekTo的包
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        status = MusicService.statusStoped;
         findViews();
         initListener();
         initMusicList();
         initListView();
         checkMusicfile();
         bindStatusChangeReceiver();
-        initPosition();
-        //startService(new Intent(this,MusicService.class));
+        initPositionAndColor();
+        initSeekBarHandler();
     }
 
     //——类、方法定义——//
@@ -63,17 +88,36 @@ public class MainActivity extends Activity {
 
         @Override
         public void onReceive(Context context, Intent intent) {
+            mseekBarHandler.removeMessages(PROGRESS_INCREASE);
+            mtime = intent.getIntExtra("time", MusicService.musicPosition);
+            mduration = intent.getIntExtra("duration", 0);
             status = intent.getIntExtra("status",-1);
             switch(status){
-                case MusicService.statusPlaying:    //播放中，将播放按钮改成暂停按钮
+                case MusicService.statusPlaying:    //播放中
+                    mseekBar.setProgress(mtime);
+                    mseekBar.setMax(mduration);
+                    time.setText(formatTime(mtime));
+                    duration.setText(formatTime(mduration));
+                    mseekBarHandler.sendEmptyMessageDelayed(PROGRESS_INCREASE, 1000L);
                     mplayOrPauseBt.setBackgroundResource(R.drawable.button_pause);  //按钮外观改成暂停
                     break;
-                case MusicService.statusPaused:     //暂停、停止，将播放按钮改回播放按钮
-                case MusicService.statusStoped:
-                    mplayOrPauseBt.setBackgroundResource(R.drawable.button_play);   //按钮外观改回播放
+                case MusicService.statusPaused:     //暂停
+                    time.setText(formatTime(mtime));
+                    duration.setText(formatTime(mduration));
+                    mseekBarHandler.sendEmptyMessage(PROGRESS_PAUSE);   //进度条暂停
+                    mplayOrPauseBt.setBackgroundResource(R.drawable.button_play_main);   //按钮外观改回播放
+                case MusicService.statusStoped:     //停止
+                    mtime = 0;
+                    mduration = 0;
+                    time.setText(formatTime(mtime));
+                    duration.setText(formatTime(mduration));
+                    mseekBarHandler.sendEmptyMessage(PROGRESS_RESET);
+                    mplayOrPauseBt.setBackgroundResource(R.drawable.button_play_main);   //按钮外观改回播放
                     break;
                 case MusicService.statusCompleted:  //当前音乐播放结束
-                    sendBroadcastOnCommand(MusicService.commandNext);   //顺序模式，播放下一首
+                    if(mmusicId == MusicList.getMusicList().size() - 1);
+                    else sendBroadcastOnCommand(MusicService.commandNext);   //顺序模式，播放下一首
+                    mseekBarHandler.sendEmptyMessage(PROGRESS_RESET);
                     break;
                 default:    //其他情况
                     break;
@@ -99,7 +143,7 @@ public class MainActivity extends Activity {
                 break;
             case MusicService.commandSeekTo:    //从某进度开始播放，加装音乐ID和进度position
                 intent.putExtra("id",mmusicId);
-                //intent.putExtra("position",mmusicPosition);
+                if(putTime == true) intent.putExtra("position",mtime);
                 break;
             case MusicService.commandPrevious: //其他功能皆不需要加装内容
             case MusicService.commandNext:
@@ -120,6 +164,15 @@ public class MainActivity extends Activity {
         mstopBt = (ImageButton) findViewById(R.id.stopButton);
         mnextBt = (ImageButton) findViewById(R.id.nextButton);
         mlist = (ListView) findViewById(R.id.myListView);
+        mtitle = (TextView) findViewById(R.id.main_title);
+        martist = (TextView) findViewById(R.id.main_artist);
+        mvoiceSeekBar = (SeekBar) findViewById(R.id.voiceSeekBar);
+        mplayingBar = (LinearLayout) findViewById(R.id.playingSeek);
+        mcontrolBar = (LinearLayout) findViewById(R.id.controlBar);
+        mimformationBar = (LinearLayout) findViewById(R.id.show);
+        mseekBar = (SeekBar) findViewById(R.id.playingSeekBar);
+        time = (TextView) findViewById(R.id.time);
+        duration = (TextView) findViewById(R.id.duration);
     }
 
     /**设置按钮监听**/
@@ -131,6 +184,10 @@ public class MainActivity extends Activity {
                 if(mmusicId == 0);
                 else --mmusicId;
                 sendBroadcastOnCommand(MusicService.commandPrevious);
+                String title = mmusicArrayList.get(mmusicId).getMmusicName().toString().trim();
+                mtitle.setText(title);
+                String artist = mmusicArrayList.get(mmusicId).getMmusicArtist().toString().trim();
+                martist.setText(artist);
             }
         });
 
@@ -147,6 +204,10 @@ public class MainActivity extends Activity {
                         break;
                     case MusicService.statusStoped:     //第一次播放
                         sendBroadcastOnCommand(MusicService.commandPlay);
+                        String title = mmusicArrayList.get(mmusicId).getMmusicName().toString().trim();
+                        mtitle.setText(title);
+                        String artist = mmusicArrayList.get(mmusicId).getMmusicArtist().toString().trim();
+                        martist.setText(artist);
                         break;
                     default:
                         break;
@@ -169,6 +230,10 @@ public class MainActivity extends Activity {
                 if(mmusicId == (MusicList.getMusicList().size()-1));
                 else ++mmusicId;
                 sendBroadcastOnCommand(MusicService.commandNext);
+                String title = mmusicArrayList.get(mmusicId).getMmusicName().toString().trim();
+                mtitle.setText(title);
+                String artist = mmusicArrayList.get(mmusicId).getMmusicArtist().toString().trim();
+                martist.setText(artist);
             }
         });
 
@@ -178,6 +243,36 @@ public class MainActivity extends Activity {
                 /**单击该项播放该项**/
                 mmusicId = position;
                sendBroadcastOnCommand(MusicService.commandPlay);
+                String title = mmusicArrayList.get(mmusicId).getMmusicName().toString().trim();
+                mtitle.setText(title);
+                String artist = mmusicArrayList.get(mmusicId).getMmusicArtist().toString().trim();
+                martist.setText(artist);
+            }
+        });
+
+        mseekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){
+
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {    //进度条正在拖动
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {     //进度条开始拖动
+                mseekBarHandler.sendEmptyMessage(PROGRESS_PAUSE);
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {   //进度条拖动结束
+                if(status != MusicService.statusStoped){
+                    mtime =seekBar.getProgress();
+                    time.setText(formatTime(mtime));
+                    sendBroadcastOnCommand(MusicService.commandSeekTo);
+                    sendBroadcastOnCommand(MusicService.commandResume);
+                }
+                if(status == MusicService.statusPlaying){
+                    //进度条恢复移动
+                    mseekBarHandler.sendEmptyMessageDelayed(PROGRESS_INCREASE,1000);
+                }
             }
         });
     }
@@ -272,13 +367,28 @@ public class MainActivity extends Activity {
         }
     }
 
-    /**初始化歌曲播放进度**/
-    private void initPosition(){
+
+    /**初始化歌曲播放进度和主题颜色**/
+    private void initPositionAndColor(){
         Intent intent = getIntent();
         mmusicId = intent.getIntExtra("id",0);
+        mcolor = intent.getIntExtra("color",-587202560);
+        mtime = MusicService.musicPosition;
+        time.setText(formatTime(mtime));
         sendBroadcastOnCommand(MusicService.commandSeekTo);
-    }
+        mseekBar.setProgress(mtime);
+        sendBroadcastOnCommand(MusicService.commandResume);
+        putTime = true;
+        String title = mmusicArrayList.get(mmusicId).getMmusicName().toString().trim();
+        mtitle.setText(title);
+        String artist = mmusicArrayList.get(mmusicId).getMmusicArtist().toString().trim();
+        martist.setText(artist);
 
+        mvoiceSeekBar.setBackgroundColor(mcolor);
+        mplayingBar.setBackgroundColor(mcolor);
+        mcontrolBar.setBackgroundColor(mcolor);
+        mimformationBar.setBackgroundColor(mcolor);
+    }
 
     /**按下返回键，返回首页**/
     @Override
@@ -290,4 +400,54 @@ public class MainActivity extends Activity {
         finish();
     }
 
+    /**时间转换为标准时间**/
+    private String formatTime(int msec) {
+        int minute = msec / 1000 / 60;  //分钟
+        int second = msec / 1000 % 60;  //秒
+        String minuteString;
+        String secondString;
+        if (minute < 10) {
+            minuteString = "0" + minute;    //凑齐两位数字
+        } else {
+            minuteString = "" + minute;
+        }
+        if (second < 10) {
+            secondString = "0" + second;
+        } else {
+            secondString = "" + second;
+        }
+        return minuteString + ":" + secondString;
+    }
+
+    /**初始化进度条**/
+    private void initSeekBarHandler() {
+        mseekBarHandler = new Handler() {
+            public void handleMessage(Message msg) {
+                super.handleMessage(msg);
+                switch (msg.what) {
+                    case PROGRESS_INCREASE: //自增
+                        if (mseekBar.getProgress() < mduration) {
+                            //进度条前进一秒
+                            mseekBar.setProgress(mtime);
+                            mseekBar.incrementProgressBy(1000);
+                            time.setText(formatTime(mtime));
+                            mtime += 1000;
+                            mseekBarHandler.sendEmptyMessageDelayed(PROGRESS_INCREASE, 1000);
+                        }
+                        break;
+                    case PROGRESS_PAUSE:    //暂停
+                        time.setText(formatTime(mtime));
+                        duration.setText(formatTime(mduration));
+                        mseekBarHandler.removeMessages(PROGRESS_INCREASE);
+                        break;
+                    case PROGRESS_RESET:    //重新开始
+                        //重置进度条画面
+                        mseekBarHandler.removeMessages(PROGRESS_INCREASE);
+                        mseekBar.setProgress(mtime);
+                        time.setText(formatTime(mtime));
+                        break;
+                }
+            }
+        };
+    }
 }

@@ -48,13 +48,14 @@ public class IndexActivity extends Activity {
     private ArrayList<Music> mmusicArrayList;           //装Music类的数组列表
     private int mmusicId = 0; //记录播放歌曲的序号，初始化为0
     private ListView msettingList; //关于设置的具体菜单
-    private int mcolor; //主题颜色
+    private int mcolor = -587202560; //主题颜色
     private int status; //播放状态
     private LinearLayout mplayingBar; //播放栏
     private RelativeLayout msettingBar; //设置栏
 
     private IndexActivity.StatusChangeReceiver statusChangeReceiver; //状态改变广播接收器
-  //  private PositionChangeReceiver positionChangeReceiver;  //播放进度改变接收器
+
+
 
 
     @Override
@@ -96,11 +97,11 @@ public class IndexActivity extends Activity {
             status = intent.getIntExtra("status",-1);
             switch(status){
                 case MusicService.statusPlaying:    //播放中，将播放按钮改成暂停按钮
-                    mplayOrPause.setBackgroundResource(R.drawable.index_button_pause);  //按钮外观改成暂停
+                    mplayOrPause.setBackgroundResource(R.drawable.button_pause);  //按钮外观改成暂停
                     break;
                 case MusicService.statusPaused:     //暂停、停止，将播放按钮改回播放按钮
                 case MusicService.statusStoped:
-                    mplayOrPause.setBackgroundResource(R.drawable.index_button_play);   //按钮外观改回播放
+                    mplayOrPause.setBackgroundResource(R.drawable.button_play_index);   //按钮外观改回播放
                     break;
                 case MusicService.statusCompleted:  //当前音乐播放结束
                     sendBroadcastOnCommand(MusicService.commandNext);   //顺序模式，播放下一首
@@ -335,13 +336,13 @@ public class IndexActivity extends Activity {
         intent.setAction("com.example.administrator.music_player.action.Main");
         intent.addCategory("android.intent.category.DEFAULT");
         intent.putExtra("id",mmusicId);
+        intent.putExtra("color",mcolor);
         startActivityForResult(intent,GO_TO_MAIN);
     }
 
     /**回调结果处理**/
     @Override
     protected void onActivityResult(int requestCode,int resultCode,Intent data){
-        String TAG1 = "GOTOMANI";
         if(requestCode == GO_TO_MAIN){   //从播放界面返回
             mmusicId = data.getIntExtra("id",mmusicId);
             //将标题和演唱者写入

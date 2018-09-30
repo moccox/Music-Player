@@ -7,6 +7,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.media.MediaPlayer;
 import android.os.IBinder;
+import android.telephony.PhoneStateListener;
+import android.telephony.TelephonyManager;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -33,6 +35,9 @@ public class MusicService extends Service {
     public static final int statusPaused = 1; //暂停状态
     public static final int statusStoped = 2; //停止状态
     public static final int statusCompleted = 4; //播放结束
+
+    private boolean phoneFlag = false;  //来电处理标志
+
     /**广播标识**/
     public static final String broadcastMusicServiceControl = "MusicService.ACTION_CONTROL"; //控制命令
     public static final String broadcastMusicServiceUpdateStatus = "MusicService.ACTION_UPDATE";  //更新状态给Main
@@ -40,7 +45,7 @@ public class MusicService extends Service {
 
     private int status; //播放状态
     private int musicId = 0;    //当前音乐ID
-    public int musicPosition = 0;
+    public static int musicPosition = 0;
 
     /**媒体播放类**/
     private MediaPlayer mplayer = new MediaPlayer();
@@ -52,6 +57,8 @@ public class MusicService extends Service {
         super.onCreate();
         bindCommandReciver(); //绑定广播接收器，可以接收广播
         status = MusicService.statusStoped;  //初始化播放状态
+        TelephonyManager telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
+        telephonyManager.listen(new MyPhoneListener(), PhoneStateListener.LISTEN_CALL_STATE);   //监听来电
     }
 
     @Override
@@ -96,6 +103,7 @@ public class MusicService extends Service {
 
                 case commandSeekTo: //从某进度播放
                     musicId = intent.getIntExtra("id",0);
+                    musicPosition = intent.getIntExtra("position",musicPosition);
                     Play(musicId);
                     mplayer.seekTo(musicPosition);
                     break;
@@ -127,9 +135,30 @@ public class MusicService extends Service {
     private void sendBroadcastOnStatusChanged(int status){
         Intent intent = new Intent(broadcastMusicServiceUpdateStatus);
         intent.putExtra("status",status);
+        intent.putExtra("duration",mplayer.getDuration());
+        intent.putExtra("time",mplayer.getCurrentPosition());
         sendBroadcast(intent);
     }
 
+    /**来电监听**/
+    private final class MyPhoneListener extends PhoneStateListener{
+        public void onCallstateChange(int state,String incommingNumber){
+            switch (state){
+                case TelephonyManager.CALL_STATE_RINGING:   //来电
+                    if(status == MusicService.statusPlaying){   //播放转暂停
+                        Pause();
+                        phoneFlag = true;
+                    }
+                    break;
+                case TelephonyManager.CALL_STATE_IDLE:   //通话结束
+                    if(phoneFlag == true){
+                        Resume();
+                        phoneFlag = false;
+                    }
+                    break;
+            }
+        }
+    }
 
     //——音乐播放相关操作——//
 
@@ -232,4 +261,6 @@ public class MusicService extends Service {
         status = MusicService.statusPlaying;
         sendBroadcastOnStatusChanged(MusicService.statusPlaying);
     }
+
+
 }
