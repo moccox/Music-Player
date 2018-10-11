@@ -48,9 +48,13 @@
         android:layout_alignParentBottom="true"
         android:orientation="horizontal"
         android:background ="@color/black">
-        <Space
-            android:layout_width="100sp"
-            android:layout_height="wrap_content" /> <!--暂时用来占用播放模式的空间-->
+       <ImageButton
+           android:id="@+id/playModele"
+           android:layout_width="wrap_content"
+           android:layout_height="wrap_content"
+           android:background="@drawable/button_loop"
+           android:layout_marginLeft="10dp"
+           android:layout_marginRight="10dp"/>
 
         <ImageButton
             android:id="@+id/index_playOrPause"

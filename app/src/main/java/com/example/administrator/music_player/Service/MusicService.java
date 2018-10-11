@@ -15,6 +15,7 @@ import android.widget.Toast;
 import com.example.administrator.music_player.Data.MusicList;
 
 import java.io.IOException;
+import java.util.Random;
 
 
 public class MusicService extends Service {
@@ -30,11 +31,16 @@ public class MusicService extends Service {
     public static final int commandCheckedIsPlaying = 6; //检查是否正在播放
     public static final int commandSeekTo = 7; //从某进度播放
     public static final int commandGetPosition = 8; //获取音乐播放进度
+    public static final int commandChangeModel = 9; //改变播放模式
     /**播放状态定义**/
     public static final int statusPlaying = 0; //播放状态
     public static final int statusPaused = 1; //暂停状态
     public static final int statusStoped = 2; //停止状态
     public static final int statusCompleted = 4; //播放结束
+    /**播放模式定义**/
+    public static final int modelLoop = 0;  //列表循环
+    public static final int modelSingleCycle = 1;  //单曲循环
+    public static final int modelShufflePlayback = 2;  //随机播放
 
     private boolean phoneFlag = false;  //来电处理标志
 
@@ -44,6 +50,7 @@ public class MusicService extends Service {
 
 
     private int status; //播放状态
+    private int model;  //播放模式
     private int musicId = 0;    //当前音乐ID
     public static int musicPosition = 0;
 
@@ -57,6 +64,7 @@ public class MusicService extends Service {
         super.onCreate();
         bindCommandReciver(); //绑定广播接收器，可以接收广播
         status = MusicService.statusStoped;  //初始化播放状态
+        model = MusicService.modelLoop; //初始化播放模式
         TelephonyManager telephonyManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
         telephonyManager.listen(new MyPhoneListener(), PhoneStateListener.LISTEN_CALL_STATE);   //监听来电
     }
@@ -113,9 +121,11 @@ public class MusicService extends Service {
                         sendBroadcastOnStatusChanged(MusicService.statusPlaying);
                     }
                     break;
-                case commandGetPosition:
+                case commandGetPosition:    //获取播放进度
                     getMusicPosition();
                     break;
+                case commandChangeModel:
+                    model = intent.getIntExtra("model",model);
                 case commandUnknown:    //未知命令处理、默认处理
                 default:
                     break;
@@ -183,10 +193,20 @@ public class MusicService extends Service {
     MediaPlayer.OnCompletionListener completionListener = new MediaPlayer.OnCompletionListener() {
         @Override
         public void onCompletion(MediaPlayer mp) {
-            if(mp.isLooping()){
-                Replay();
-            }else{
-                sendBroadcastOnStatusChanged(MusicService.statusCompleted);
+            switch (model){
+                case MusicService.modelLoop:    //列表循环模式
+                    if(musicId == MusicList.getMusicList().size()-1) musicId = 0;   //到达最后一首便从头播放
+                    else ++musicId; //没有到达最后一首便id加1
+
+                    Play(musicId);
+                    break;
+                case MusicService.modelSingleCycle: //单曲循环模式
+                    Stop();
+                    Play(musicId);
+                    break;
+                case MusicService.modelShufflePlayback: //随机播放模式，向后随机播放
+                    ShufflePlayback(true);
+                    break;
             }
         }
     };
@@ -233,34 +253,66 @@ public class MusicService extends Service {
     }
     /**播放上一首歌曲**/
     private void PlayPrevious(){
-        if(musicId == 0){
-            Toast.makeText(MusicService.this, "已是第一首歌曲", Toast.LENGTH_LONG).show();
-        }else {
-            --musicId;
-            Play(musicId);
+        if(model == MusicService.modelShufflePlayback){ //随机播放，向前随机播放歌曲
+            ShufflePlayback(true); //触顶反弹 向后随机
+        }else{
+            if(musicId == 0){   //第一首
+                switch (model){
+                    case MusicService.modelLoop://列表循环模式，播放最后一首
+                        musicId = MusicList.getMusicList().size()-1;
+                        Play(musicId);
+                        break;
+                    case MusicService.modelSingleCycle: //单曲循环，提示以是第一首歌曲
+                        Toast.makeText(MusicService.this, "已是第一首歌曲", Toast.LENGTH_LONG).show();
+                }
+            }else {
+                --musicId;
+                Play(musicId);
+            }
         }
+
     }
 
     /**播放下一首歌曲**/
     private void PlayNext(){
-        if(musicId == (MusicList.getMusicList().size()-1)){
-            Toast.makeText(MusicService.this, "已是最后一首歌曲", Toast.LENGTH_LONG).show();
-        }else{
-            ++musicId;
-            Play(musicId);
+        if(model == MusicService.modelShufflePlayback){ //随机播放，向后随机播放歌曲
+            ShufflePlayback(false);  //触底反弹 向前随机
+        }else{  //列表循环、单曲循环 播放下一首
+            if(musicId == (MusicList.getMusicList().size()-1)){ //最后一首
+                switch (model){
+                    case  MusicService.modelLoop://列表循环模式，从第一首起播
+                        musicId = 0;
+                        Play(musicId);
+                        break;
+                    case MusicService.modelSingleCycle: //单曲循环，提示已是最后一首
+                        Toast.makeText(MusicService.this, "已是最后一首歌曲", Toast.LENGTH_LONG).show();
+                        break;
+                }
+            }else{
+                ++musicId;
+                Play(musicId);
+            }
         }
+
     }
 
     /**获取播放进度**/
     private void getMusicPosition(){
         musicPosition = mplayer.getCurrentPosition();   //获取播放进度
     }
-    /**重新播放本歌曲（播放完成后）**/
-    private void Replay(){
-        mplayer.start();
-        status = MusicService.statusPlaying;
-        sendBroadcastOnStatusChanged(MusicService.statusPlaying);
+
+    /**随机播放歌曲**/
+    private void ShufflePlayback( boolean flag){
+        int i;
+        if(flag == true){   //向后随机
+            i = new Random().nextInt((MusicList.getMusicList().size()-1))+musicId+1; //产生一个从目前id到最后一曲之间的随机数
+            musicId = i;
+            Play(musicId);
+        }
+        else{   //向前随机
+            i = new Random().nextInt(musicId+1); //产生一个从0到目前id之间的随机数
+            musicId = i;
+            Play(musicId);
+        }
     }
-
-
 }

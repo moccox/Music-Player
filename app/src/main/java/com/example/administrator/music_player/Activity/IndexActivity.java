@@ -40,6 +40,7 @@ public class IndexActivity extends Activity {
     private final int GO_TO_COLOR = 2;//界面2（ChooseColor）返回值
 
     private ImageButton mplayOrPause;   //播放/暂停按钮
+    private ImageButton mplayModel; //播放模式按钮
     private ImageButton msettingBt;     //设置按钮
     private ListView mlistView; //歌曲列表
     private TextView mtitle;    //正在播放的歌曲标题
@@ -50,11 +51,11 @@ public class IndexActivity extends Activity {
     private ListView msettingList; //关于设置的具体菜单
     private int mcolor = -587202560; //主题颜色
     private int status; //播放状态
+    private int mmodel = MusicService.modelLoop;    //播放模式
     private LinearLayout mplayingBar; //播放栏
     private RelativeLayout msettingBar; //设置栏
 
     private IndexActivity.StatusChangeReceiver statusChangeReceiver; //状态改变广播接收器
-
 
 
 
@@ -75,7 +76,8 @@ public class IndexActivity extends Activity {
 
     /**组件关联**/
     private void findViews(){
-        mplayOrPause = (ImageButton) findViewById(R.id.index_playOrPause);
+        mplayOrPause = (ImageButton) findViewById(R.id.index_playOrPause);  //播放/暂停按钮
+        mplayModel = (ImageButton) findViewById(R.id.playModele);   //播放模式按钮
         mlistView = (ListView) findViewById(R.id.index_listView);
         mtitle = (TextView) findViewById(R.id.index_title);
         mtitle.setSelected(true);   //View太多获取不到焦点，不设置这个不会滚动
@@ -83,8 +85,8 @@ public class IndexActivity extends Activity {
         martist.setSelected(true);
         msettingBt = (ImageButton) findViewById(R.id.setting); //设置按钮
         msettingList = (ListView) findViewById(R.id.setting_listView); //设置菜单
-        mplayingBar = (LinearLayout) findViewById(R.id.playingBar);
-        msettingBar = (RelativeLayout) findViewById(R.id.settingBar);
+        mplayingBar = (LinearLayout) findViewById(R.id.playingBar); //播放栏
+        msettingBar = (RelativeLayout) findViewById(R.id.settingBar);   //设置栏
     }
 
     //——类、方法定义——//
@@ -129,7 +131,9 @@ public class IndexActivity extends Activity {
                 break;
             case MusicService.commandSeekTo:    //从某进度开始播放，加装音乐ID和进度position
                 intent.putExtra("id",mmusicId);
-          //      intent.putExtra("position",mmusicPosition);
+                break;
+            case MusicService.commandChangeModel:   //改变为某种播放模式，加装该播放模式
+                intent.putExtra("model",mmodel);
                 break;
             case MusicService.commandPrevious: //其他功能皆不需要加装内容
             case MusicService.commandNext:
@@ -146,6 +150,29 @@ public class IndexActivity extends Activity {
 
     /**设置按钮监听**/
     private void initListener(){
+        /**改变播放模式**/
+        mplayModel.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                switch (mmodel){
+                    case MusicService.modelLoop:    //列表循环改单曲循环
+                        mmodel = MusicService.modelSingleCycle;
+                        sendBroadcastOnCommand(MusicService.commandChangeModel);
+                        mplayModel.setBackgroundResource(R.drawable.button_single_cycle);   //外观改为单曲循环
+                        break;
+                    case MusicService.modelSingleCycle: //单曲循环改随机播放
+                        mmodel = MusicService.modelShufflePlayback;
+                        sendBroadcastOnCommand(MusicService.commandChangeModel);
+                        mplayModel.setBackgroundResource(R.drawable.button_shuffle_playback);      //外观改为随机播放
+                        break;
+                    case MusicService.modelShufflePlayback: //随机播放改列表循环
+                        mmodel = MusicService.modelLoop;
+                        sendBroadcastOnCommand(MusicService.commandChangeModel);
+                        mplayModel.setBackgroundResource(R.drawable.button_loop);   //外观改为列表循环
+                        break;
+                }
+            }
+        });
 
         mplayOrPause.setOnClickListener(new View.OnClickListener() {
             @Override
