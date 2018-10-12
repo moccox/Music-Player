@@ -46,7 +46,8 @@ public class MusicService extends Service {
 
     /**广播标识**/
     public static final String broadcastMusicServiceControl = "MusicService.ACTION_CONTROL"; //控制命令
-    public static final String broadcastMusicServiceUpdateStatus = "MusicService.ACTION_UPDATE";  //更新状态给Main
+    public static final String broadcastMusicServiceUpdateStatus = "MusicService.ACTION_UPDATE_STATUS";  //更新状态
+    public static final String broadcastMusicServiceUpdateId = "MusicService.ACTION_UPDATE_ID";  //更新musicID
 
 
     private int status; //播放状态
@@ -150,6 +151,13 @@ public class MusicService extends Service {
         sendBroadcast(intent);
     }
 
+    /**发送广播，提醒音乐ID改变**/
+    private void sendBroadcastOnIdChanged(int id){
+        Intent intent = new Intent(broadcastMusicServiceUpdateId);
+        intent.putExtra("id",id);
+        sendBroadcast(intent);
+    }
+
     /**来电监听**/
     private final class MyPhoneListener extends PhoneStateListener{
         public void onCallstateChange(int state,String incommingNumber){
@@ -195,17 +203,21 @@ public class MusicService extends Service {
         public void onCompletion(MediaPlayer mp) {
             switch (model){
                 case MusicService.modelLoop:    //列表循环模式
+                    Log.i("loop", "onCompletion1: "+musicId);
                     if(musicId == MusicList.getMusicList().size()-1) musicId = 0;   //到达最后一首便从头播放
                     else ++musicId; //没有到达最后一首便id加1
 
                     Play(musicId);
+                    sendBroadcastOnIdChanged(musicId);
                     break;
                 case MusicService.modelSingleCycle: //单曲循环模式
                     Stop();
                     Play(musicId);
+                    sendBroadcastOnIdChanged(musicId);
                     break;
                 case MusicService.modelShufflePlayback: //随机播放模式，向后随机播放
                     ShufflePlayback(true);
+                    sendBroadcastOnIdChanged(musicId);
                     break;
             }
         }

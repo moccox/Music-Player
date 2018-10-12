@@ -54,6 +54,7 @@ public class MainActivity extends Activity {
     private static final int PROGRESS_RESET = 2;    //重新自增
 
     private StatusChangeReceiver statusChangeReceiver; //状态改变广播接收器
+    private IdChangeReceiver idChangeReceiver; //音乐ID改变接收广播
     private TextView mtitle;    //当前歌曲
     private TextView martist;   //当前演唱者
     private SeekBar mvoiceSeekBar;  //音量控制条
@@ -67,7 +68,7 @@ public class MainActivity extends Activity {
 
     private boolean putTime = false;    //第一次初始化进度flag，不需要把mtime放进seekTo的包（让MusicService跳转到从index过来时记录下的进度，而不是mtime）
     private AudioManager maudioManager;
-    private VolumeChangeReciver voiceChangeReciver;
+    private VolumeChangeReciver voiceChangeReciver; //音量硬件改变接收广播
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -87,6 +88,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy(){
         unregisterReceiver(statusChangeReceiver);
+        unregisterReceiver(idChangeReceiver);
         unregisterReceiver(voiceChangeReciver);
         super.onDestroy();
     }
@@ -108,7 +110,7 @@ public class MainActivity extends Activity {
                     textViewTime.setText(formatTime(mtime));
                     textViewDuration.setText(formatTime(mduration));
                     mseekBarHandler.sendEmptyMessageDelayed(PROGRESS_INCREASE, 1000L);
-                    mplayOrPauseBt.setBackgroundResource(R.drawable.button_pause);  //按钮外观改成暂停
+                    mplayOrPauseBt.setBackgroundResource(R.drawable.button_pause_main);  //按钮外观改成暂停
                     break;
                 case MusicService.statusPaused:     //暂停
                     textViewTime.setText(formatTime(mtime));
@@ -136,6 +138,15 @@ public class MainActivity extends Activity {
         }
     }
 
+    /**音乐ID改变广播接收器定义**/
+    class IdChangeReceiver extends BroadcastReceiver{
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            mmusicId=intent.getIntExtra("id",mmusicId);
+        }
+    }
+
     /**硬件调节音量接收器定义**/
     private class VolumeChangeReciver extends BroadcastReceiver{
 
@@ -151,11 +162,14 @@ public class MainActivity extends Activity {
     /**绑定广播接收器**/
     private void bindStatusChangeReceiver(){
         statusChangeReceiver = new StatusChangeReceiver();
+        idChangeReceiver = new IdChangeReceiver();
         voiceChangeReciver = new VolumeChangeReciver();
         IntentFilter filter1 = new IntentFilter(MusicService.broadcastMusicServiceUpdateStatus); //消息过滤
-        IntentFilter filter2 = new IntentFilter("android.media.VOLUME_CHANGED_ACTION"); //消息过滤
+        IntentFilter filter2 = new IntentFilter(MusicService.broadcastMusicServiceUpdateId);    //消息过滤
+        IntentFilter filter3 = new IntentFilter("android.media.VOLUME_CHANGED_ACTION"); //消息过滤
         registerReceiver(statusChangeReceiver,filter1);
-        registerReceiver(voiceChangeReciver,filter2);
+        registerReceiver(idChangeReceiver,filter2);
+        registerReceiver(voiceChangeReciver,filter3);
     }
 
     /**发送命令广播**/
@@ -290,7 +304,7 @@ public class MainActivity extends Activity {
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {   //进度条拖动结束
-                Log.i("status", "onStopTrackingTouch: "+status);
+                Log.i("stop seeking", "onStopTrackingTouch: "+ mmusicId);
                 if(status != MusicService.statusStoped){
                     mtime =seekBar.getProgress();
                     textViewTime.setText(formatTime(mtime));
@@ -446,6 +460,7 @@ public class MainActivity extends Activity {
     public void onBackPressed(){
         Intent intent = new Intent();
         sendBroadcastOnCommand(MusicService.commandGetPosition);
+        Log.i("back", "onBackPressed: musicId" + mmusicId);
         intent.putExtra("id",mmusicId);
         setResult(1,intent);
         finish();

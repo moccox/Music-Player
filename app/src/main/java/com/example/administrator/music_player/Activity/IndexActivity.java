@@ -74,6 +74,12 @@ public class IndexActivity extends Activity {
         startService(new Intent(this,MusicService.class));
     }
 
+    @Override
+    protected void onDestroy(){
+        unregisterReceiver(statusChangeReceiver);
+        super.onDestroy();
+    }
+
     /**组件关联**/
     private void findViews(){
         mplayOrPause = (ImageButton) findViewById(R.id.index_playOrPause);  //播放/暂停按钮
@@ -99,7 +105,7 @@ public class IndexActivity extends Activity {
             status = intent.getIntExtra("status",-1);
             switch(status){
                 case MusicService.statusPlaying:    //播放中，将播放按钮改成暂停按钮
-                    mplayOrPause.setBackgroundResource(R.drawable.button_pause);  //按钮外观改成暂停
+                    mplayOrPause.setBackgroundResource(R.drawable.button_pause_index);  //按钮外观改成暂停
                     break;
                 case MusicService.statusPaused:     //暂停、停止，将播放按钮改回播放按钮
                 case MusicService.statusStoped:
