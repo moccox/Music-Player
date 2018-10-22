@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.os.IBinder;
 import android.telephony.PhoneStateListener;
@@ -36,7 +37,7 @@ public class MusicService extends Service {
     public static final int statusPlaying = 0; //播放状态
     public static final int statusPaused = 1; //暂停状态
     public static final int statusStoped = 2; //停止状态
-    public static final int statusCompleted = 4; //播放结束
+
     /**播放模式定义**/
     public static final int modelLoop = 0;  //列表循环
     public static final int modelSingleCycle = 1;  //单曲循环
@@ -58,7 +59,8 @@ public class MusicService extends Service {
     /**媒体播放类**/
     private MediaPlayer mplayer = new MediaPlayer();
 
-    private CommandReceiver receiver;   //命令广播接收器
+    private CommandReceiver commandReceiver;   //命令广播接收器
+    private HeadsetPlusReceiver headsetPlusReceiver;    //耳机拔插接收器
 
     @Override
     public void onCreate(){
@@ -75,6 +77,8 @@ public class MusicService extends Service {
         if(mplayer != null){
             mplayer.release();  //释放播放器资源
         }
+        unregisterReceiver(commandReceiver);    //解绑广播接收器
+        unregisterReceiver(headsetPlusReceiver);
         super.onDestroy();
     }
 
@@ -102,9 +106,11 @@ public class MusicService extends Service {
                     break;
                 case commandPrevious:   //播放上一首
                     PlayPrevious();
+                    sendBroadcastOnIdChanged(musicId);
                     break;
                 case commandNext:   //播放下一首
                     PlayNext();
+                    sendBroadcastOnIdChanged(musicId);
                     break;
                 case commandStop:   //停止播放
                     Stop();
@@ -115,6 +121,7 @@ public class MusicService extends Service {
                     musicPosition = intent.getIntExtra("position",musicPosition);
                     Play(musicId);
                     mplayer.seekTo(musicPosition);
+                    sendBroadcastOnIdChanged(musicId);
                     break;
 
                 case commandCheckedIsPlaying: //检查是否正在播放
@@ -135,11 +142,29 @@ public class MusicService extends Service {
 
     }
 
+    /**耳机拔插状态检测广播接收器**/
+    class HeadsetPlusReceiver extends BroadcastReceiver{
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            AudioManager audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE); //声音管理
+            if(audioManager.isWiredHeadsetOn()){    //耳机插入
+                if(status == statusPaused) Resume();    //暂停改播放
+            }else{  //拔出耳机
+                if(status == statusPlaying) Pause(); //播放改暂停
+            }
+        }
+    }
+
     /**绑定广播接收器**/
     private void bindCommandReciver(){
-        receiver = new CommandReceiver();
-        IntentFilter filter = new IntentFilter(broadcastMusicServiceControl); //消息过滤
-        registerReceiver(receiver,filter);
+        commandReceiver = new CommandReceiver();
+        headsetPlusReceiver = new HeadsetPlusReceiver();
+        IntentFilter filter1 = new IntentFilter(broadcastMusicServiceControl); //消息过滤
+        IntentFilter filter2 = new IntentFilter();
+        filter2.addAction(Intent.ACTION_HEADSET_PLUG);
+        registerReceiver(commandReceiver,filter1);
+        registerReceiver(headsetPlusReceiver,filter2);
     }
 
     /**发送广播 提醒改变状态**/
@@ -160,7 +185,8 @@ public class MusicService extends Service {
 
     /**来电监听**/
     private final class MyPhoneListener extends PhoneStateListener{
-        public void onCallstateChange(int state,String incommingNumber){
+        @Override
+        public void onCallStateChanged(int state,String incommingNumber){
             switch (state){
                 case TelephonyManager.CALL_STATE_RINGING:   //来电
                     if(status == MusicService.statusPlaying){   //播放转暂停
@@ -201,24 +227,12 @@ public class MusicService extends Service {
     MediaPlayer.OnCompletionListener completionListener = new MediaPlayer.OnCompletionListener() {
         @Override
         public void onCompletion(MediaPlayer mp) {
-            switch (model){
-                case MusicService.modelLoop:    //列表循环模式
-                    Log.i("loop", "onCompletion1: "+musicId);
-                    if(musicId == MusicList.getMusicList().size()-1) musicId = 0;   //到达最后一首便从头播放
-                    else ++musicId; //没有到达最后一首便id加1
-
-                    Play(musicId);
-                    sendBroadcastOnIdChanged(musicId);
-                    break;
-                case MusicService.modelSingleCycle: //单曲循环模式
-                    Stop();
-                    Play(musicId);
-                    sendBroadcastOnIdChanged(musicId);
-                    break;
-                case MusicService.modelShufflePlayback: //随机播放模式，向后随机播放
-                    ShufflePlayback(true);
-                    sendBroadcastOnIdChanged(musicId);
-                    break;
+            if(model == MusicService.modelSingleCycle) {    //单曲循环特判
+                Stop();
+                Play(musicId);
+            }else  {
+                PlayNext();
+                sendBroadcastOnIdChanged(musicId);
             }
         }
     };
@@ -265,8 +279,9 @@ public class MusicService extends Service {
     }
     /**播放上一首歌曲**/
     private void PlayPrevious(){
-        if(model == MusicService.modelShufflePlayback){ //随机播放，向前随机播放歌曲
-            ShufflePlayback(true); //触顶反弹 向后随机
+        if(model == MusicService.modelShufflePlayback){ //随机播放
+            if(musicId == 0)  ShufflePlayback(true); //触顶反弹 向后随机
+            else ShufflePlayback(false);    //尚未到顶 向前随机
         }else{
             if(musicId == 0){   //第一首
                 switch (model){
@@ -287,8 +302,9 @@ public class MusicService extends Service {
 
     /**播放下一首歌曲**/
     private void PlayNext(){
-        if(model == MusicService.modelShufflePlayback){ //随机播放，向后随机播放歌曲
-            ShufflePlayback(false);  //触底反弹 向前随机
+        if(model == MusicService.modelShufflePlayback){ //随机播放
+            if(musicId == (MusicList.getMusicList().size()-1)) ShufflePlayback(false);  //触底反弹 向前随机
+            else ShufflePlayback(true);     //尚未到底 向后随机
         }else{  //列表循环、单曲循环 播放下一首
             if(musicId == (MusicList.getMusicList().size()-1)){ //最后一首
                 switch (model){
@@ -317,12 +333,14 @@ public class MusicService extends Service {
     private void ShufflePlayback( boolean flag){
         int i;
         if(flag == true){   //向后随机
-            i = new Random().nextInt((MusicList.getMusicList().size()-1))+musicId+1; //产生一个从目前id到最后一曲之间的随机数
-            musicId = i;
+
+            i = new Random().nextInt((MusicList.getMusicList().size()-1-musicId)); //产生一个从0到id-1之间的随机数
+            musicId++;
+            musicId += i;
             Play(musicId);
         }
         else{   //向前随机
-            i = new Random().nextInt(musicId+1); //产生一个从0到目前id之间的随机数
+            i = new Random().nextInt(musicId); //产生一个从0到目前id之间的随机数
             musicId = i;
             Play(musicId);
         }

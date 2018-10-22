@@ -1,8 +1,10 @@
 package com.example.administrator.music_player.Activity;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.database.Cursor;
@@ -13,6 +15,8 @@ import android.os.Handler;
 import android.os.Message;
 import android.provider.MediaStore;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ImageButton;
@@ -53,8 +57,7 @@ public class MainActivity extends Activity {
     private static final int PROGRESS_PAUSE = 1;    //暂停自增
     private static final int PROGRESS_RESET = 2;    //重新自增
 
-    private StatusChangeReceiver statusChangeReceiver; //状态改变广播接收器
-    private IdChangeReceiver idChangeReceiver; //音乐ID改变接收广播
+
     private TextView mtitle;    //当前歌曲
     private TextView martist;   //当前演唱者
     private SeekBar mvoiceSeekBar;  //音量控制条
@@ -68,6 +71,8 @@ public class MainActivity extends Activity {
 
     private boolean putTime = false;    //第一次初始化进度flag，不需要把mtime放进seekTo的包（让MusicService跳转到从index过来时记录下的进度，而不是mtime）
     private AudioManager maudioManager;
+    private StatusChangeReceiver statusChangeReceiver; //状态改变广播接收器
+    private IdChangeReceiver idChangeReceiver; //音乐ID改变接收广播
     private VolumeChangeReciver voiceChangeReciver; //音量硬件改变接收广播
 
     @Override
@@ -107,15 +112,12 @@ public class MainActivity extends Activity {
                 case MusicService.statusPlaying:    //播放中
                     mseekBar.setProgress(mtime);
                     mseekBar.setMax(mduration);
-                    textViewTime.setText(formatTime(mtime));
+                   // textViewTime.setText(formatTime(mtime));
                     textViewDuration.setText(formatTime(mduration));
                     mseekBarHandler.sendEmptyMessageDelayed(PROGRESS_INCREASE, 1000L);
                     mplayOrPauseBt.setBackgroundResource(R.drawable.button_pause_main);  //按钮外观改成暂停
                     break;
                 case MusicService.statusPaused:     //暂停
-                    textViewTime.setText(formatTime(mtime));
-                    mseekBar.setProgress(mtime);
-                    textViewDuration.setText(formatTime(mduration));
                     mseekBarHandler.sendEmptyMessage(PROGRESS_PAUSE);   //进度条暂停
                     mplayOrPauseBt.setBackgroundResource(R.drawable.button_play_main);   //按钮外观改回播放
                     break;
@@ -126,11 +128,6 @@ public class MainActivity extends Activity {
                     textViewDuration.setText(formatTime(mduration));
                     mseekBarHandler.sendEmptyMessage(PROGRESS_RESET);
                     mplayOrPauseBt.setBackgroundResource(R.drawable.button_play_main);   //按钮外观改回播放
-                    break;
-                case MusicService.statusCompleted:  //当前音乐播放结束
-                    if(mmusicId == MusicList.getMusicList().size() - 1);
-                    else sendBroadcastOnCommand(MusicService.commandNext);   //顺序模式，播放下一首
-                    mseekBarHandler.sendEmptyMessage(PROGRESS_RESET);
                     break;
                 default:    //其他情况
                     break;
@@ -144,6 +141,10 @@ public class MainActivity extends Activity {
         @Override
         public void onReceive(Context context, Intent intent) {
             mmusicId=intent.getIntExtra("id",mmusicId);
+            String title = mmusicArrayList.get(mmusicId).getMmusicName().toString().trim();
+            mtitle.setText(title);
+            String artist = mmusicArrayList.get(mmusicId).getMmusicArtist().toString().trim();
+            martist.setText(artist);
         }
     }
 
@@ -204,7 +205,9 @@ public class MainActivity extends Activity {
         mnextBt = (ImageButton) findViewById(R.id.nextButton);          //下一首按钮
         mlist = (ListView) findViewById(R.id.myListView);               //列表
         mtitle = (TextView) findViewById(R.id.main_title);              //歌曲名字
+        mtitle.setSelected(true);
         martist = (TextView) findViewById(R.id.main_artist);            //演唱者
+        martist.setSelected(true);
         mvoiceSeekBar = (SeekBar) findViewById(R.id.voiceSeekBar);      //音量条件进度条
         mplayingBar = (LinearLayout) findViewById(R.id.playingSeek);    //播放栏（包含进度条和时间显示）
         mcontrolBar = (LinearLayout) findViewById(R.id.controlBar);     //控制栏（包含四个按钮）
@@ -455,12 +458,43 @@ public class MainActivity extends Activity {
         mimformationBar.setBackgroundColor(mcolor);
     }
 
+    /**创建菜单**/
+    public boolean onCreateOptionsMenu(Menu menu){
+        this.getMenuInflater().inflate(R.menu.main,menu);
+        return true;
+    }
+
+    /**菜单点击事件**/
+    public boolean onOptionsItemSelected(MenuItem item){
+        switch(item.getItemId()){
+            case R.id.menu_about:   //关于
+                new AlertDialog.Builder(MainActivity.this).setTitle("关于播放器").setMessage("这是一个时尚的音乐播放器").show();
+                break;
+            case R.id.menu_exit:    //退出
+                new AlertDialog.Builder(MainActivity.this)
+                        .setTitle("退出")
+                        .setMessage("您即将退出本程序，是否继续？")
+                        .setPositiveButton("是",new android.content.DialogInterface.OnClickListener(){   //确定按钮
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                System.exit(0);
+                            }
+                        })
+                        .setNegativeButton("否",new android.content.DialogInterface.OnClickListener(){   //取消按钮
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                            }
+                        }).show();
+                break;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
     /**按下返回键，返回首页**/
     @Override
     public void onBackPressed(){
         Intent intent = new Intent();
         sendBroadcastOnCommand(MusicService.commandGetPosition);
-        Log.i("back", "onBackPressed: musicId" + mmusicId);
         intent.putExtra("id",mmusicId);
         setResult(1,intent);
         finish();
@@ -494,22 +528,19 @@ public class MainActivity extends Activity {
                     case PROGRESS_INCREASE: //自增
                         if (mseekBar.getProgress() < mduration) {
                             mseekBar.setProgress(mtime);    //进度条从某音乐进度开始
-                            mseekBar.incrementProgressBy(1000); //进度条进度+1000毫秒（1秒）
+                            mseekBarHandler.sendEmptyMessageDelayed(PROGRESS_INCREASE, 1000);   //100毫秒（1秒）后发送自增命令
                             textViewTime.setText(formatTime(mtime));
                             mtime += 1000;  //进度+1000毫秒（1秒）
-                            mseekBarHandler.sendEmptyMessageDelayed(PROGRESS_INCREASE, 1000);
                         }
                         break;
                     case PROGRESS_PAUSE:    //暂停
-                        textViewTime.setText(formatTime(mtime));
-                        textViewDuration.setText(formatTime(mduration));
                         mseekBarHandler.removeMessages(PROGRESS_INCREASE);
                         break;
                     case PROGRESS_RESET:    //重新开始
                         //重置进度条画面
                         mseekBarHandler.removeMessages(PROGRESS_INCREASE);
-                        mseekBar.setProgress(mtime);
-                        textViewTime.setText(formatTime(mtime));
+                        mseekBar.setProgress(0);
+                        textViewTime.setText("00:00");
                         break;
                 }
             }

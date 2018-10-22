@@ -1,8 +1,10 @@
 package com.example.administrator.music_player.Activity;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.database.Cursor;
@@ -11,11 +13,15 @@ import android.provider.MediaStore;
 import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
+import android.widget.CompoundButton;
+import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.RelativeLayout;
+import android.widget.SeekBar;
 import android.widget.SimpleAdapter;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -28,6 +34,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Timer;
+import java.util.TimerTask;
 
 /**
  * 首页
@@ -39,9 +47,20 @@ public class IndexActivity extends Activity {
     private final int GO_TO_MAIN = 1; //界面1（MainActivity）返回值
     private final int GO_TO_COLOR = 2;//界面2（ChooseColor）返回值
 
+    private static boolean isExit = false;  //确定退出程序标志
+    private static boolean isSleep =false;  //启动定时器标志
+
+    private Timer msleepTimer;  //定时器定时
+    private int sleepMinue = 20;    //默认定时关闭时间20分钟
+
     private ImageButton mplayOrPause;   //播放/暂停按钮
     private ImageButton mplayModel; //播放模式按钮
     private ImageButton msettingBt;     //设置按钮
+    private ImageButton msearchBt;  //搜索按钮
+    private ImageButton mcloseClock;    //关闭定时器按钮
+
+    private EditText msearchText;   //搜索键入
+
     private ListView mlistView; //歌曲列表
     private TextView mtitle;    //正在播放的歌曲标题
     private TextView martist;   //正在播放的歌曲演唱者
@@ -56,6 +75,7 @@ public class IndexActivity extends Activity {
     private RelativeLayout msettingBar; //设置栏
 
     private IndexActivity.StatusChangeReceiver statusChangeReceiver; //状态改变广播接收器
+    private IndexActivity.IdChangeReceiver idChangeReceiver; //音乐ID改变接收广播
 
 
 
@@ -77,6 +97,7 @@ public class IndexActivity extends Activity {
     @Override
     protected void onDestroy(){
         unregisterReceiver(statusChangeReceiver);
+        unregisterReceiver(idChangeReceiver);
         super.onDestroy();
     }
 
@@ -89,6 +110,9 @@ public class IndexActivity extends Activity {
         mtitle.setSelected(true);   //View太多获取不到焦点，不设置这个不会滚动
         martist = (TextView) findViewById(R.id.index_artist);
         martist.setSelected(true);
+        msearchText = (EditText) findViewById(R.id.search_text); //搜索键入
+        msearchBt = (ImageButton) findViewById(R.id.search_button); //搜索按钮
+        mcloseClock = (ImageButton) findViewById(R.id.close_clock); //关闭定时按钮，开启定时关闭时激活
         msettingBt = (ImageButton) findViewById(R.id.setting); //设置按钮
         msettingList = (ListView) findViewById(R.id.setting_listView); //设置菜单
         mplayingBar = (LinearLayout) findViewById(R.id.playingBar); //播放栏
@@ -106,13 +130,14 @@ public class IndexActivity extends Activity {
             switch(status){
                 case MusicService.statusPlaying:    //播放中，将播放按钮改成暂停按钮
                     mplayOrPause.setBackgroundResource(R.drawable.button_pause_index);  //按钮外观改成暂停
+                    String title = mmusicArrayList.get(mmusicId).getMmusicName().toString().trim();
+                    mtitle.setText(title);
+                    String artist = mmusicArrayList.get(mmusicId).getMmusicArtist().toString().trim();
+                    martist.setText(artist);
                     break;
                 case MusicService.statusPaused:     //暂停、停止，将播放按钮改回播放按钮
                 case MusicService.statusStoped:
                     mplayOrPause.setBackgroundResource(R.drawable.button_play_index);   //按钮外观改回播放
-                    break;
-                case MusicService.statusCompleted:  //当前音乐播放结束
-                    sendBroadcastOnCommand(MusicService.commandNext);   //顺序模式，播放下一首
                     break;
                 default:    //其他情况
                     break;
@@ -120,11 +145,27 @@ public class IndexActivity extends Activity {
         }
     }
 
+    /**音乐ID改变广播接收器定义**/
+    class IdChangeReceiver extends BroadcastReceiver{
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            mmusicId=intent.getIntExtra("id",mmusicId);
+            String title = mmusicArrayList.get(mmusicId).getMmusicName().toString().trim();
+            mtitle.setText(title);
+            String artist = mmusicArrayList.get(mmusicId).getMmusicArtist().toString().trim();
+            martist.setText(artist);
+        }
+    }
+
     /**绑定广播接收器**/
     private void bindStatusChangeReceiver(){
         statusChangeReceiver = new IndexActivity.StatusChangeReceiver();
-        IntentFilter filter = new IntentFilter(MusicService.broadcastMusicServiceUpdateStatus); //消息过滤
-        registerReceiver(statusChangeReceiver,filter);
+        idChangeReceiver = new IndexActivity.IdChangeReceiver();
+        IntentFilter filter1 = new IntentFilter(MusicService.broadcastMusicServiceUpdateStatus); //消息过滤
+        IntentFilter filter2 = new IntentFilter(MusicService.broadcastMusicServiceUpdateId);    //消息过滤
+        registerReceiver(statusChangeReceiver,filter1);
+        registerReceiver(idChangeReceiver,filter2);
     }
 
     /**发送命令广播**/
@@ -236,13 +277,21 @@ public class IndexActivity extends Activity {
         msettingList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                if(position == 0){
-                    //设置主题颜色
-                    Intent intent = new Intent();
-                    intent.setAction("com.example.administrator.music_player.action.Color");
-                    intent.addCategory("android.intent.category.DEFAULT");
-                    startActivityForResult(intent,GO_TO_COLOR);
+                switch (position){
+                    case 0:         //设置主题颜色
+                        Intent intent = new Intent();
+                        intent.setAction("com.example.administrator.music_player.action.Color");
+                        intent.addCategory("android.intent.category.DEFAULT");
+                        startActivityForResult(intent,GO_TO_COLOR);
+                        break;
+                    case 1:         //调整均衡器
+                        /**未完善**/
+                        break;
+                    case 2:         //设置定时关闭
+                        showSleepDialog();
+                        break;
                 }
+
             }
         });
 
@@ -252,6 +301,15 @@ public class IndexActivity extends Activity {
                 //跳转到播放界面
                 sendBroadcastOnCommand(MusicService.commandGetPosition);    //让Service保存当前歌曲的进度
                 goToMain();
+            }
+        });
+
+        mcloseClock.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                isSleep = false;
+                if(msleepTimer != null) msleepTimer.cancel();
+                mcloseClock.setVisibility(View.INVISIBLE);
             }
         });
     }
@@ -333,10 +391,15 @@ public class IndexActivity extends Activity {
         List<Map<String,String>> listMap = new ArrayList<>();
         map.put("Setting","主题颜色");
         listMap.add(map);
-        String TAG = "initSettingList()";
+
         map = new HashMap<String,String>();
         map.put("Setting","均衡器");
         listMap.add(map);
+
+        map = new HashMap<String,String>();
+        map.put("Setting","定时关闭");
+        listMap.add(map);
+
         String[] from =new String[]{"Setting"};
         int[] to = {R.id.setting_item};
         SimpleAdapter simpleAdapter = new SimpleAdapter(this,listMap,R.layout.settinglist_item,from,to);
@@ -358,10 +421,6 @@ public class IndexActivity extends Activity {
             mplayOrPause.setEnabled(true);
         }
     }
-
-
-
-
 
     /**界面跳转1：跳转到MainActivity**/
     public void goToMain() {
@@ -407,5 +466,119 @@ public class IndexActivity extends Activity {
             //获取每一个item，先关联（没有关联不会改变颜色），再改变背景颜色
             listview.getChildAt(position).findViewById(R.id.setting_item).setBackgroundColor(color);
         }
+    }
+
+    /**连续按两下返回键退出程序**/
+    @Override
+    public void onBackPressed(){
+        Timer timer = null;
+        if(isExit ==false){
+            isExit = true;  //【1】先将isExit改成true
+            Toast.makeText(this, "请再按一次返回键退出程序", Toast.LENGTH_LONG).show();
+            timer = new Timer();
+            timer.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    isExit = false;
+                }
+            },2000);    //【2】计时2秒后将isExit改回false
+        }else{
+            //因为上一次按返回键时【1】执行了，【2】还没到2秒就按了第二次返回键
+            // 所以此时第二次调用方法onBackPressed()并且isExit为true
+            System.exit(0);
+        }
+    }
+
+    /**定时关闭选择弹窗**/
+    private void showSleepDialog()
+    {
+        final View userview = this.getLayoutInflater().inflate(R.layout.dialog_sleep,null); //获取布局
+        final TextView minuteText = (TextView) userview.findViewById(R.id.dialog_textView);
+        final Switch sleepSwitch = (Switch) userview.findViewById(R.id.dialog_switch);
+        final SeekBar sleepSeekbar = (SeekBar) userview.findViewById(R.id.dialog_seekBar);
+
+        minuteText.setText("睡眠"+sleepMinue+"分钟");
+        sleepSwitch.setChecked(isSleep);    //根据是否打开睡眠设置开关状态
+        sleepSeekbar.setMax(60);
+        sleepSeekbar.setProgress(sleepMinue);
+        /*设置监听*/
+        sleepSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                sleepMinue = progress;
+                minuteText.setText("睡眠"+sleepMinue+"分钟");
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+
+            }
+        });
+        sleepSwitch.setOnCheckedChangeListener(new Switch.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                isSleep = isChecked;    //开关打开，睡眠模式为true；开关关闭，睡眠模式为false
+            }
+        });
+
+        /*设置定时器任务*/
+        final TimerTask timerTask = new TimerTask() {
+            @Override
+            public void run() {
+                System.exit(0);
+            }
+        };
+        final AlertDialog.Builder dialog = new AlertDialog.Builder(this);
+        dialog.setTitle("选择睡眠时间(0~60分钟)");
+        dialog.setView(userview);
+
+        /*设置按钮及其响应事件*/
+        dialog.setNegativeButton("取消", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface arg0, int arg1) {
+                arg0.dismiss();
+            }
+        });
+        dialog.setNeutralButton("重置", new DialogInterface.OnClickListener() {
+
+            @Override
+            public void onClick(DialogInterface arg0, int arg1) {
+                if(isSleep)
+                {
+                    timerTask.cancel();
+                    msleepTimer.cancel();
+                }
+                isSleep = false;
+                sleepMinue = 20;
+                mcloseClock.setVisibility(View.INVISIBLE);
+            }
+        });
+        dialog.setPositiveButton("确定", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface arg0, int arg1) {
+                if(isSleep)
+                {
+                    msleepTimer = new Timer();
+                    int time = sleepSeekbar.getProgress();
+                    //启动任务，time*60*1000毫秒后执行
+                    msleepTimer.schedule(timerTask, time*60*1000);
+                    mcloseClock.setVisibility(View.VISIBLE);
+                }
+                else
+                {   //可通过switch改变isSleep状态，此时isSleep==false，即不打算开启了
+                    timerTask.cancel();
+                    if(msleepTimer != null) msleepTimer.cancel();
+                    arg0.dismiss();
+                    mcloseClock.setVisibility(View.INVISIBLE);
+                }
+            }
+        });
+
+        dialog.show();
     }
 }
